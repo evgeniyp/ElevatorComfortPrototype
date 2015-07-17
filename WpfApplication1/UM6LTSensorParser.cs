@@ -3,26 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-public class PtChar
+public class UM6LTSensorParser : IByteArrDataParser
 {
-    private readonly byte _value;
-    public PtChar(byte value) { _value = Convert.ToByte(value); }
-    public bool HasData()
+    private class PtChar
     {
-        return (_value & (byte)128) != 0;
+        private readonly byte _value;
+        public PtChar(byte value)
+        {
+            _value = value;
+            HasData = (_value & (byte)128) != 0;
+            IsBatchOperation = (_value & (byte)64) != 0;
+            DataLength = IsBatchOperation ? (byte)(_value >> 2) & (byte)15 : 1;
+        }
+        public bool HasData { get; private set; }
+        public bool IsBatchOperation { get; private set; }
+        public int DataLength { get; private set; }
     }
-    public bool IsBatchOperation()
-    {
-        return (_value & (byte)64) != 0;
-    }
-    public int GetDataLength()
-    {
-        return IsBatchOperation() ? (byte)(_value >> 2) & (byte)15 : 1;
-    }
-}
 
-public class UM6LTSensorParser
-{
     private const float ACCEL_MULTIPLY_FACTOR = 0.000183105f;
     private const byte UM6_ACCEL_PROC_XY = 0x5E;
     private const byte UM6_ACCEL_PROC_Z = 0x5F;
@@ -31,7 +28,7 @@ public class UM6LTSensorParser
     private byte[] _buffer = new byte[1024];
     private int _bufferPosition = 0;
 
-    public Action<float> OnX, OnY, OnZ;
+    public event Action<string, object> DataParsed;
 
     public void HandleData(byte[] buffer, int bytesToRead)
     {
@@ -83,15 +80,13 @@ public class UM6LTSensorParser
 
     private void PacketReceived(byte[] packet)
     {
-        //Console.WriteLine("PT: " + Convert.ToString(packet[0], 2).PadLeft(8, '0') + " OTHER: " + BitConverter.ToString(packet, 1, packet.Length - 1));
-
         PtChar ptChar = new PtChar(packet[0]);
-        if (ptChar.HasData())
+        if (ptChar.HasData)
         {
             byte address = packet[1];
-            if (ptChar.IsBatchOperation())
+            if (ptChar.IsBatchOperation)
             {
-                var dataLength = ptChar.GetDataLength();
+                var dataLength = ptChar.DataLength;
                 for (int i = 0; i < dataLength; i++)
                 {
                     byte[] data = new byte[4];
@@ -116,16 +111,16 @@ public class UM6LTSensorParser
             case UM6_ACCEL_PROC_XY:
                 Int16 integerValueX = (Int16)(((Int16)data[0]) << 8 | data[1]);
                 float floatValueX = (float)integerValueX * ACCEL_MULTIPLY_FACTOR;
-                if (OnX != null) { OnX(floatValueX); }
+                if (DataParsed != null) { DataParsed("X", floatValueX); }
 
                 Int16 integerValueY = (Int16)(((Int16)data[2]) << 8 | data[3]);
                 float floatValueY = (float)integerValueY * ACCEL_MULTIPLY_FACTOR;
-                if (OnY != null) { OnY(floatValueY); }
+                if (DataParsed != null) { DataParsed("Y", floatValueY); }
                 break;
             case UM6_ACCEL_PROC_Z:
                 Int16 integerValueZ = (Int16)(((Int16)data[0]) << 8 | data[1]);
                 float floatValueZ = (float)integerValueZ * ACCEL_MULTIPLY_FACTOR;
-                if (OnZ != null) { OnZ(floatValueZ); }
+                if (DataParsed != null) { DataParsed("Z", floatValueZ); }
                 break;
             default:
                 break;

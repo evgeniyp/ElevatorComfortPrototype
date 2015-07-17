@@ -15,6 +15,9 @@ using OxyPlot.Series;
 using OxyPlot;
 using System.Windows.Threading;
 using System.IO.Ports;
+using Newtonsoft.Json;
+using Microsoft.Win32;
+using System.IO;
 
 namespace WpfApplication1
 {
@@ -23,18 +26,33 @@ namespace WpfApplication1
         private const int REDRAW_INTERVAL_MS = 30;
 
         private DispatcherTimer _graphRedrawTimer;
-        private UM6LTSensorParser _parser;
+        private IByteArrDataParser _parser;
         private SerialPort _serialPort;
+        private byte[] _serialPortBuffer = new byte[16384];
         private MainViewModel _mainViewModel { get { return DataContext as MainViewModel; } }
-        private long _startTime = DateTime.Now.Ticks;
+        private int _dataPointCounter;
 
         public MainWindow()
         {
             InitializeComponent();
 
+            InitializeComboBoxComPorts();
             InitializeParser();
-            InitializeSerialPort();
             InitializeRedrawTimer();
+        }
+
+        private void InitializeComboBoxComPorts()
+        {
+            ComboBoxComPorts.Items.Clear();
+            var portNames = SerialPort.GetPortNames();
+            foreach (var portName in portNames)
+            {
+                ComboBoxComPorts.Items.Add(portName);
+            }
+            if (ComboBoxComPorts.Items.Count > 0)
+            {
+                ComboBoxComPorts.SelectedIndex = 0;
+            }
         }
 
         private void InitializeParser()
@@ -42,28 +60,19 @@ namespace WpfApplication1
             _parser = new UM6LTSensorParser();
         }
 
-        private void InitializeSerialPort()
+        private void _parser_DataParsed(string name, object value)
         {
-            _serialPort = new SerialPort("COM3");
-
-            var buffer = new byte[16384];
-            _serialPort.Encoding = System.Text.Encoding.ASCII;
-            _serialPort.BaudRate = 115200;
-            _serialPort.Parity = Parity.None;
-            _serialPort.StopBits = StopBits.One;
-            _serialPort.DataBits = 8;
-            _serialPort.Handshake = Handshake.None;
-            _serialPort.DataReceived += (sender, eventArgs) =>
+            this.Dispatcher.BeginInvoke((Action)(() =>
             {
-                try
+                switch (name)
                 {
-                    SerialPort sp = (SerialPort)sender;
-                    var bytesToRead = _serialPort.BytesToRead;
-                    sp.Read(buffer, 0, bytesToRead);
-                    _parser.HandleData(buffer, bytesToRead);
+                    case "X": _mainViewModel.AddX(_dataPointCounter, (float)value); break;
+                    case "Y": _mainViewModel.AddY(_dataPointCounter, (float)value); break;
+                    case "Z": _mainViewModel.AddZ(_dataPointCounter, (float)value); _dataPointCounter++; break;
+                    default:
+                        break;
                 }
-                catch (Exception e) { this.Dispatcher.BeginInvoke((Action)(() => { this.Title = e.Message; })); }
-            };
+            }));
         }
 
         private void InitializeRedrawTimer()
@@ -73,43 +82,55 @@ namespace WpfApplication1
             _graphRedrawTimer.Interval = TimeSpan.FromMilliseconds(REDRAW_INTERVAL_MS);
         }
 
-        private void EnableDataEntry(bool enable)
+        private void OpenSerialPort(string portName)
         {
-            if (enable)
+            _serialPort = new SerialPort(portName);
+            _serialPort.Encoding = System.Text.Encoding.ASCII;
+            _serialPort.BaudRate = 115200;
+            _serialPort.Parity = Parity.None;
+            _serialPort.StopBits = StopBits.One;
+            _serialPort.DataBits = 8;
+            _serialPort.Handshake = Handshake.None;
+            _serialPort.DataReceived += _serialPort_DataReceived;
+            _serialPort.Open();
+        }
+
+        private void CloseSerialPort()
+        {
+            _serialPort.DataReceived -= _serialPort_DataReceived;
+            _serialPort.Close();
+        }
+
+        private void _serialPort_DataReceived(object sender, SerialDataReceivedEventArgs eventArgs)
+        {
+            try
             {
-                _parser.OnX = v => { this.Dispatcher.BeginInvoke((Action)(() => 
+                SerialPort sp = (SerialPort)sender;
+                var bytesToRead = _serialPort.BytesToRead;
+                sp.Read(_serialPortBuffer, 0, bytesToRead);
+                _parser.HandleData(_serialPortBuffer, bytesToRead);
+            }
+            catch (Exception e) { this.Dispatcher.BeginInvoke((Action)(() => { this.Title = e.Message; })); }
+        }
+
+        private void EnableDataEntry(bool enable, string comPortName = "")
+        {
+            try
+            {
+                if (enable)
                 {
-                    _mainViewModel.AddX((DateTime.Now.Ticks - _startTime) / 10000000.0, v);
-                })); };
-
-                _parser.OnY = v => { this.Dispatcher.BeginInvoke((Action)(() => { 
-                    _mainViewModel.AddY((DateTime.Now.Ticks - _startTime) / 10000000.0, v);
-                })); };
-
-                _parser.OnZ = v => { this.Dispatcher.BeginInvoke((Action)(() => {
-                    _mainViewModel.AddZ((DateTime.Now.Ticks - _startTime) / 10000000.0, v); 
-                })); };
-
-                try
-                {
-                    _serialPort.Open();
+                    _parser.DataParsed += _parser_DataParsed;
+                    OpenSerialPort(comPortName);
                     _graphRedrawTimer.IsEnabled = true;
                 }
-                catch (System.IO.IOException e) { this.Title = e.Message; }
-            }
-            else
-            {
-                _parser.OnX = null;
-                _parser.OnY = null;
-                _parser.OnZ = null;
-
-                try 
+                else
                 {
+                    _parser.DataParsed -= _parser_DataParsed;
+                    CloseSerialPort();
                     _graphRedrawTimer.IsEnabled = false;
-                    _serialPort.Close();
                 }
-                catch (System.IO.IOException e) { this.Title = e.Message; }
             }
+            catch (System.IO.IOException e) { this.Title = e.Message; }
         }
 
         private void ButtonStart_Click(object sender, RoutedEventArgs e)
@@ -118,13 +139,70 @@ namespace WpfApplication1
             if (button.Content.ToString() == "Start")
             {
                 button.Content = "Stop";
-                EnableDataEntry(true);
+                if (ComboBoxComPorts.SelectedItem == null) { return; }
+                ComboBoxComPorts.IsEnabled = false;
+                ButtonLoad.IsEnabled = false;
+                ButtonSave.IsEnabled = false;
+                EnableDataEntry(true, ComboBoxComPorts.SelectedItem.ToString());
             }
             else
             {
                 button.Content = "Start";
+                ComboBoxComPorts.IsEnabled = true;
+                ButtonLoad.IsEnabled = true;
+                ButtonSave.IsEnabled = true;
                 EnableDataEntry(false);
             }
+        }
+
+        private void ButtonFitAll_Click(object sender, RoutedEventArgs e)
+        {
+            _mainViewModel.MyModel.ResetAllAxes();
+            _mainViewModel.Invalidate();
+        }
+
+        private void ButtonLoad_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "XYZ axis files |*.xyz";
+            openFileDialog.Multiselect = false;
+            if (openFileDialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var stringToDeserialize = File.ReadAllText(openFileDialog.FileName);
+                    _dataPointCounter = _mainViewModel.DeserializeXYZ(stringToDeserialize);
+                    _mainViewModel.Invalidate();
+                }
+                catch (Exception exception) 
+                {
+                    MessageBox.Show(exception.Message, "Load Error");
+                    ClearAll();
+                }
+            }
+        }
+
+        private void ButtonSave_Click(object sender, RoutedEventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Filter = "XYZ axis files |*.xyz";
+            if (saveFileDialog.ShowDialog() == true)
+            {
+                try { File.WriteAllText(saveFileDialog.FileName, _mainViewModel.SerializeXYZ()); }
+                catch (Exception exception) { MessageBox.Show(exception.Message, "Save Error"); }
+            }
+        }
+
+        private void ButtonClear_Click(object sender, RoutedEventArgs e)
+        {
+            ClearAll();
+        }
+
+        private void ClearAll()
+        {
+            _mainViewModel.ClearXYZ();
+            _dataPointCounter = 0;
+            _mainViewModel.Invalidate();
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -136,10 +214,12 @@ namespace WpfApplication1
     public class MainViewModel
     {
         private const int COMMAND_RATE = 20;
-        private const int SECONDS_TO_REMEMBER = 10;
+        private const int SECONDS_TO_REMEMBER = 60;
         private const int LOWPASS_FREQ = 5;
 
-        private FilterButterworth _filter = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
+        private FilterButterworth _filterX = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
+        private FilterButterworth _filterY = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
+        private FilterButterworth _filterZ = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
 
         public PlotModel MyModel { get; private set; }
 
@@ -159,6 +239,8 @@ namespace WpfApplication1
 
         public void AddX(double x, double y)
         {
+            _filterX.Update(y);
+            y = _filterX.Value;
             _x.Points.Add(new DataPoint(x, y));
             while (_x.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {
@@ -167,6 +249,8 @@ namespace WpfApplication1
         }
         public void AddY(double x, double y)
         {
+            _filterY.Update(y);
+            y = _filterY.Value;
             _y.Points.Add(new DataPoint(x, y));
             while (_y.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {
@@ -175,12 +259,42 @@ namespace WpfApplication1
         }
         public void AddZ(double x, double y)
         {
-            _filter.Update(y);
-            y = _filter.Value;
+            _filterZ.Update(y);
+            y = _filterZ.Value;
             _z.Points.Add(new DataPoint(x, y));
             while (_z.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {
                 _z.Points.RemoveAt(0);
+            }
+        }
+
+        public void ClearXYZ()
+        {
+            _x.Points.Clear();
+            _y.Points.Clear();
+            _z.Points.Clear();
+        }
+
+        public string SerializeXYZ()
+        {
+            return JsonConvert.SerializeObject(new List<DataPoint>[3] { _x.Points, _y.Points, _z.Points });
+        }
+
+        public int DeserializeXYZ(string serialized)
+        {
+            try
+            {
+                List<DataPoint>[] result = JsonConvert.DeserializeObject<List<DataPoint>[]>(serialized);
+                ClearXYZ();
+                _x.Points.AddRange(result[0]);
+                _y.Points.AddRange(result[1]);
+                _z.Points.AddRange(result[2]);
+
+                return (int)_z.Points.Max(p => p.X);
+            }
+            catch (Exception)
+            {
+                return 0;
             }
         }
     }
