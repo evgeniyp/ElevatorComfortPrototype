@@ -8,12 +8,13 @@
         <local:MainViewModel/>
     </Window.DataContext>
     <Grid>
-        <oxy:PlotView Name="PlotView" Model="{Binding MyModel}" Margin="0,0,10,100"/>
-        <Button Name="ButtonStart" Content="Start" Click="ButtonStart_Click" HorizontalAlignment="Left" Margin="10,0,0,10" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonLoad" Content="Load" Click="ButtonLoad_Click" HorizontalAlignment="Left" Margin="147,0,0,10" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonSave" Content="Save" Click="ButtonSave_Click" HorizontalAlignment="Left" Margin="284,0,0,10" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonClear" Content="Clear" Click="ButtonClear_Click" HorizontalAlignment="Left" Margin="421,0,0,10" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonFitAll" Content="Fit All" Click="ButtonFitAll_Click"  HorizontalAlignment="Right" Margin="0,0,10,10" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <ComboBox Name="ComboBoxComPorts" HorizontalAlignment="Left" Margin="10,0,0,61" Width="127" Height="22" VerticalAlignment="Bottom"/>
+        <oxy:PlotView Name="PlotView" Model="{Binding MyModel}" Margin="0,0,10,120"/>
+        <Button Name="ButtonStart" Content="Start" Click="ButtonStart_Click" HorizontalAlignment="Left" Margin="10,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="ButtonLoad" Content="Load" Click="ButtonLoad_Click" HorizontalAlignment="Left" Margin="142,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="ButtonSave" Content="Save" Click="ButtonSave_Click" HorizontalAlignment="Left" Margin="274,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="ButtonReset" Content="Reset" Click="ButtonReset_Click" HorizontalAlignment="Left" Margin="406,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="ButtonFitAll" Content="Fit All" Click="ButtonFitAll_Click" HorizontalAlignment="Right" Margin="0,0,10,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="CalibrateSpeedFromAcc" Content="Calibrate" HorizontalAlignment="Left" Margin="10,0,0,10" Click="CalibrateSpeedFromAcc_Click" Width="127" FontWeight="Bold" Height="20" VerticalAlignment="Bottom"/>
+        <ComboBox Name="ComboBoxComPorts" HorizontalAlignment="Left" Margin="10,0,0,86" Width="127" Height="22" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>

@@ -32,6 +32,9 @@ namespace WpfApplication1
         private byte[] _serialPortBuffer = new byte[16384];
         private MainViewModel _mainViewModel { get { return DataContext as MainViewModel; } }
         private int _dataPointCounter;
+        private TwoPoleButterworthFilter _filterZ = new TwoPoleButterworthFilter();
+        private AccelToSpeed _accelToSpeed = new AccelToSpeed();
+        private bool _calibrated = false;
 
         public MainWindow()
         {
@@ -56,6 +59,11 @@ namespace WpfApplication1
             }
         }
 
+        private void InitializeAccelToSpeed(double min, double max)
+        {
+            _accelToSpeed.Reset();
+        }
+
         private void InitializeParser()
         {
             _parser = new UM6LTSensorParser();
@@ -67,9 +75,20 @@ namespace WpfApplication1
             {
                 switch (name)
                 {
-                    case "X": _mainViewModel.AddX(_dataPointCounter, (float)value); break;
-                    case "Y": _mainViewModel.AddY(_dataPointCounter, (float)value); break;
-                    case "Z": _mainViewModel.AddZ(_dataPointCounter, (float)value); _dataPointCounter++; break;
+                    case "Z":
+                        double v = (float)value;
+                        v = _filterZ.Next(v);
+
+                        _mainViewModel.AddZ(_dataPointCounter, v);
+
+                        if (_calibrated)
+                        {
+                            double speed = _accelToSpeed.Next(v);
+                            _mainViewModel.AddSpeed(_dataPointCounter, speed);
+                        }
+
+                        _dataPointCounter++;
+                        break;
                     default:
                         break;
                 }
@@ -93,13 +112,17 @@ namespace WpfApplication1
             _serialPort.DataBits = 8;
             _serialPort.Handshake = Handshake.None;
             _serialPort.DataReceived += _serialPort_DataReceived;
-            _serialPort.Open();
+
+            if (!_serialPort.IsOpen) { _serialPort.Open(); }
         }
 
         private void CloseSerialPort()
         {
-            _serialPort.DataReceived -= _serialPort_DataReceived;
-            _serialPort.Close();
+            if (_serialPort != null)
+            {
+                _serialPort.DataReceived -= _serialPort_DataReceived;
+                if (_serialPort.IsOpen) { _serialPort.Close(); }
+            }
         }
 
         private void _serialPort_DataReceived(object sender, SerialDataReceivedEventArgs eventArgs)
@@ -172,13 +195,16 @@ namespace WpfApplication1
                 try
                 {
                     var stringToDeserialize = File.ReadAllText(openFileDialog.FileName);
-                    _dataPointCounter = _mainViewModel.DeserializeXYZ(stringToDeserialize);
+                    _dataPointCounter = _mainViewModel.Deserialize(stringToDeserialize);
+
+                    Calibrate();
+
                     _mainViewModel.Invalidate();
                 }
-                catch (Exception exception) 
+                catch (Exception exception)
                 {
                     MessageBox.Show(exception.Message, "Load Error");
-                    ClearAll();
+                    Reset();
                 }
             }
         }
@@ -189,104 +215,133 @@ namespace WpfApplication1
             saveFileDialog.Filter = "XYZ axis files |*.xyz";
             if (saveFileDialog.ShowDialog() == true)
             {
-                try { File.WriteAllText(saveFileDialog.FileName, _mainViewModel.SerializeXYZ()); }
+                try { File.WriteAllText(saveFileDialog.FileName, _mainViewModel.Serialize()); }
                 catch (Exception exception) { MessageBox.Show(exception.Message, "Save Error"); }
             }
         }
 
-        private void ButtonClear_Click(object sender, RoutedEventArgs e)
+        private void ButtonReset_Click(object sender, RoutedEventArgs e)
         {
-            ClearAll();
+            Reset();
         }
 
-        private void ClearAll()
+        private void Reset()
         {
-            _mainViewModel.ClearXYZ();
+            _mainViewModel.Clear();
             _dataPointCounter = 0;
+            _accelToSpeed.Reset();
+            _calibrated = false;
             _mainViewModel.Invalidate();
+        }
+
+        private string Calibrate()
+        {
+            double min = _mainViewModel.GetZMin(),
+                   max = _mainViewModel.GetZMax(),
+                   median = _mainViewModel.GetZMedian();
+
+            _accelToSpeed.SetToDeadZone(min, max, median);
+            _accelToSpeed.Reset();
+
+            _calibrated = true;
+
+            return String.Format("{0:0.000000} - {1:0.000000}", min, max);
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             EnableDataEntry(false);
         }
+
+        private void CalibrateSpeedFromAcc_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            button.Content = Calibrate();
+        }
     }
 
     public class MainViewModel
     {
-        private const double COMMAND_RATE = 99.058823529411764705882352941176; //20;
+        private const double COMMAND_RATE = 99.058823529411764705882352941176;
         private const int SECONDS_TO_REMEMBER = 60;
         private const int LOWPASS_FREQ = 5;
 
-        private TwoPoleButterworthFilter _filterX = new TwoPoleButterworthFilter();
-        private TwoPoleButterworthFilter _filterY = new TwoPoleButterworthFilter();
-        private TwoPoleButterworthFilter _filterZ = new TwoPoleButterworthFilter();
-
         public PlotModel MyModel { get; private set; }
 
-        private LineSeries _x = new LineSeries("X");
-        private LineSeries _y = new LineSeries("Y");
-        private LineSeries _z = new LineSeries("Z");
+        private LineSeries _z = new LineSeries("Accel Z");
+        private LineSeries _speedZ = new LineSeries("Speed Z");
 
         public MainViewModel()
         {
             this.MyModel = new PlotModel { Title = "Accel Data" };
-            this.MyModel.Series.Add(_x);
-            this.MyModel.Series.Add(_y);
             this.MyModel.Series.Add(_z);
+            this.MyModel.Series.Add(_speedZ);
         }
 
         public void Invalidate() { MyModel.InvalidatePlot(true); }
 
-        public void AddX(double x, double y)
-        {
-            y = _filterX.Next(y);
-            _x.Points.Add(new DataPoint(x, y));
-            while (_x.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
-            {
-                _x.Points.RemoveAt(0);
-            }
-        }
-        public void AddY(double x, double y)
-        {
-            y = _filterY.Next(y);
-            _y.Points.Add(new DataPoint(x, y));
-            while (_y.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
-            {
-                _y.Points.RemoveAt(0);
-            }
-        }
         public void AddZ(double x, double y)
         {
-            y = _filterZ.Next(y);
             _z.Points.Add(new DataPoint(x, y));
             while (_z.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {
                 _z.Points.RemoveAt(0);
             }
         }
-
-        public void ClearXYZ()
+        public void AddSpeed(double x, double y)
         {
-            _x.Points.Clear();
-            _y.Points.Clear();
+            _speedZ.Points.Add(new DataPoint(x, y));
+            while (_speedZ.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
+            {
+                _speedZ.Points.RemoveAt(0);
+            }
+        }
+
+        public double GetZMin()
+        {
+            if (_z.Points.Count == 0) { return -1; }
+            else { return _z.Points.Min(m => m.Y); }
+        }
+
+        public double GetZMax()
+        {
+            if (_z.Points.Count == 0) { return -1; }
+            else { return _z.Points.Max(m => m.Y); }
+        }
+
+        public double GetZMedian()
+        {
+            if (_z.Points.Count == 0) { return -1; }
+            else 
+            {
+                int count = _z.Points.Count();
+                var orderedPoints = _z.Points.OrderBy(p => p.Y);
+                double median = _z.Points.ElementAt(count / 2).Y + orderedPoints.ElementAt((count - 1) / 2).Y;
+                median /= 2;
+                return median;
+            }
+        }
+
+        public void Clear()
+        {
             _z.Points.Clear();
+            _speedZ.Points.Clear();
+            
         }
 
-        public string SerializeXYZ()
+        public string Serialize()
         {
-            return JsonConvert.SerializeObject(new List<DataPoint>[3] { _x.Points, _y.Points, _z.Points });
+            return JsonConvert.SerializeObject(new List<DataPoint>[2] { _z.Points, _speedZ.Points });
         }
 
-        public int DeserializeXYZ(string serialized)
+        public int Deserialize(string serialized)
         {
             try
             {
                 List<DataPoint>[] result = JsonConvert.DeserializeObject<List<DataPoint>[]>(serialized);
-                ClearXYZ();
-                _x.Points.AddRange(result[0]);
-                _y.Points.AddRange(result[1]);
-                _z.Points.AddRange(result[2]);
+                Clear();
+                _z.Points.AddRange(result[0]);
+                _speedZ.Points.AddRange(result[1]);
 
                 return (int)_z.Points.Max(p => p.X);
             }
