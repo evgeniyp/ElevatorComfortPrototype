@@ -18,6 +18,7 @@ using System.IO.Ports;
 using Newtonsoft.Json;
 using Microsoft.Win32;
 using System.IO;
+using Filters;
 
 namespace WpfApplication1
 {
@@ -213,13 +214,13 @@ namespace WpfApplication1
 
     public class MainViewModel
     {
-        private const int COMMAND_RATE = 20;
+        private const double COMMAND_RATE = 99.058823529411764705882352941176; //20;
         private const int SECONDS_TO_REMEMBER = 60;
         private const int LOWPASS_FREQ = 5;
 
-        private FilterButterworth _filterX = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
-        private FilterButterworth _filterY = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
-        private FilterButterworth _filterZ = new FilterButterworth(LOWPASS_FREQ, COMMAND_RATE, FilterButterworth.PassType.Lowpass, Math.Sqrt(2));
+        private TwoPoleButterworthFilter _filterX = new TwoPoleButterworthFilter();
+        private TwoPoleButterworthFilter _filterY = new TwoPoleButterworthFilter();
+        private TwoPoleButterworthFilter _filterZ = new TwoPoleButterworthFilter();
 
         public PlotModel MyModel { get; private set; }
 
@@ -239,8 +240,7 @@ namespace WpfApplication1
 
         public void AddX(double x, double y)
         {
-            _filterX.Update(y);
-            y = _filterX.Value;
+            y = _filterX.Next(y);
             _x.Points.Add(new DataPoint(x, y));
             while (_x.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {
@@ -249,8 +249,7 @@ namespace WpfApplication1
         }
         public void AddY(double x, double y)
         {
-            _filterY.Update(y);
-            y = _filterY.Value;
+            y = _filterY.Next(y);
             _y.Points.Add(new DataPoint(x, y));
             while (_y.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {
@@ -259,8 +258,7 @@ namespace WpfApplication1
         }
         public void AddZ(double x, double y)
         {
-            _filterZ.Update(y);
-            y = _filterZ.Value;
+            y = _filterZ.Next(y);
             _z.Points.Add(new DataPoint(x, y));
             while (_z.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
             {

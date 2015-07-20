@@ -69,8 +69,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="FilterButterworth.cs" />
     <Compile Include="IByteArrDataParser.cs" />
+    <Compile Include="TwoPoleButterworthFilter.cs" />
     <Compile Include="UM6LTSensorParser.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
