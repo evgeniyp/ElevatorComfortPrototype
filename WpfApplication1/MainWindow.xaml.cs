@@ -1,16 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using OxyPlot.Series;
 using OxyPlot;
 using System.Windows.Threading;
@@ -19,6 +11,7 @@ using Newtonsoft.Json;
 using Microsoft.Win32;
 using System.IO;
 using Filters;
+using System.Diagnostics;
 
 namespace WpfApplication1
 {
@@ -31,8 +24,13 @@ namespace WpfApplication1
         private SerialPort _serialPort;
         private byte[] _serialPortBuffer = new byte[16384];
         private MainViewModel _mainViewModel { get { return DataContext as MainViewModel; } }
+        private Stopwatch _stopwatch = new Stopwatch();
         private int _dataPointCounter;
+        private double _lastX;
+        private double _lastY;
+        private long _lastPointTime;
         private TwoPoleButterworthFilter _filterZ = new TwoPoleButterworthFilter();
+        //private FilterButterworth2 _filterZ = new FilterButterworth2(1);
         private AccelToSpeed _accelToSpeed = new AccelToSpeed();
         private bool _calibrated = false;
 
@@ -40,6 +38,7 @@ namespace WpfApplication1
         {
             InitializeComponent();
 
+            _stopwatch.Start();
             InitializeComboBoxComPorts();
             InitializeParser();
             InitializeRedrawTimer();
@@ -71,28 +70,40 @@ namespace WpfApplication1
 
         private void _parser_DataParsed(string name, object value)
         {
-            this.Dispatcher.BeginInvoke((Action)(() =>
+            var thisPointTime = _stopwatch.ElapsedMilliseconds;
+            var deltaSeconds = (thisPointTime - _lastPointTime) / 1000.0;
+
+            switch (name)
             {
-                switch (name)
-                {
-                    case "Z":
-                        double v = (float)value;
-                        v = _filterZ.Next(v);
+                case "X":
+                    _lastX = (float)value;
+                    break;
+                case "Y":
+                    _lastY = (float)value;
+                    break;
+                case "Z":
+                    double v = Math.Sqrt((float)value * (float)value + _lastX * _lastX + _lastY * _lastY);
+                    v = _filterZ.Next(v);
 
+                    double speed = 0;
+                    if (_calibrated)
+                    {
+                        speed = _accelToSpeed.Next(v, deltaSeconds);
+                    }
+
+                    this.Dispatcher.BeginInvoke((Action)(() =>
+                    {
                         _mainViewModel.AddZ(_dataPointCounter, v);
+                        if (_calibrated) _mainViewModel.AddSpeed(_dataPointCounter, speed * 10);
+                    }));
 
-                        if (_calibrated)
-                        {
-                            double speed = _accelToSpeed.Next(v);
-                            _mainViewModel.AddSpeed(_dataPointCounter, speed);
-                        }
+                    _dataPointCounter++;
+                    _lastPointTime = thisPointTime;
 
-                        _dataPointCounter++;
-                        break;
-                    default:
-                        break;
-                }
-            }));
+                    break;
+                default:
+                    break;
+            }
         }
 
         private void InitializeRedrawTimer()
@@ -262,8 +273,8 @@ namespace WpfApplication1
 
     public class MainViewModel
     {
-        private const double COMMAND_RATE = 99.058823529411764705882352941176;
-        private const int SECONDS_TO_REMEMBER = 60;
+        private const double COMMAND_RATE = 99.058823529411764705882352941176; // RATE ON DEVICE = 72
+        private const int SECONDS_TO_REMEMBER = 600;
         private const int LOWPASS_FREQ = 5;
 
         public PlotModel MyModel { get; private set; }
@@ -312,13 +323,14 @@ namespace WpfApplication1
         public double GetZMedian()
         {
             if (_z.Points.Count == 0) { return -1; }
-            else 
+            else
             {
-                int count = _z.Points.Count();
-                var orderedPoints = _z.Points.OrderBy(p => p.Y);
-                double median = _z.Points.ElementAt(count / 2).Y + orderedPoints.ElementAt((count - 1) / 2).Y;
-                median /= 2;
-                return median;
+                return _z.Points.Average(a => a.Y);
+                //int count = _z.Points.Count();
+                //var orderedPoints = _z.Points.OrderBy(p => p.Y);
+                //double median = _z.Points.ElementAt(count / 2).Y + orderedPoints.ElementAt((count - 1) / 2).Y;
+                //median /= 2;
+                //return median;
             }
         }
 
@@ -326,7 +338,7 @@ namespace WpfApplication1
         {
             _z.Points.Clear();
             _speedZ.Points.Clear();
-            
+
         }
 
         public string Serialize()
