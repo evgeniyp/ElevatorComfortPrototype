@@ -13,17 +13,19 @@ using System.IO;
 using Filters;
 using System.Diagnostics;
 
-namespace WpfApplication1
+namespace ElevatorComfort
 {
     public partial class MainWindow : Window
     {
-        private const int REDRAW_INTERVAL_MS = 30;
+        private Model _model = new Model();
+
+        private const int REDRAW_INTERVAL_MS = 10;
 
         private DispatcherTimer _graphRedrawTimer;
         private IByteArrDataParser _parser;
         private SerialPort _serialPort;
         private byte[] _serialPortBuffer = new byte[16384];
-        private MainViewModel _mainViewModel { get { return DataContext as MainViewModel; } }
+        private ViewModel _mainViewModel { get { return DataContext as ViewModel; } }
         private Stopwatch _stopwatch = new Stopwatch();
         private int _dataPointCounter;
         private double _lastX;
@@ -91,11 +93,7 @@ namespace WpfApplication1
                         speed = _accelToSpeed.Next(v, deltaSeconds);
                     }
 
-                    this.Dispatcher.BeginInvoke((Action)(() =>
-                    {
-                        _mainViewModel.AddZ(_dataPointCounter, v);
-                        if (_calibrated) _mainViewModel.AddSpeed(_dataPointCounter, speed * 10);
-                    }));
+                    _model.AddAccel(_dataPointCounter, v);
 
                     _dataPointCounter++;
                     _lastPointTime = thisPointTime;
@@ -109,7 +107,7 @@ namespace WpfApplication1
         private void InitializeRedrawTimer()
         {
             _graphRedrawTimer = new DispatcherTimer();
-            _graphRedrawTimer.Tick += (sender, e) => { _mainViewModel.Invalidate(); };
+            _graphRedrawTimer.Tick += (sender, e) => { _mainViewModel.SetSeries(_model.GetAccel()); };
             _graphRedrawTimer.Interval = TimeSpan.FromMilliseconds(REDRAW_INTERVAL_MS);
         }
 
@@ -192,7 +190,7 @@ namespace WpfApplication1
 
         private void ButtonFitAll_Click(object sender, RoutedEventArgs e)
         {
-            _mainViewModel.MyModel.ResetAllAxes();
+            _mainViewModel.Plot.ResetAllAxes();
             _mainViewModel.Invalidate();
         }
 
@@ -269,98 +267,10 @@ namespace WpfApplication1
             var button = sender as Button;
             button.Content = Calibrate();
         }
-    }
 
-    public class MainViewModel
-    {
-        private const double COMMAND_RATE = 99.058823529411764705882352941176; // RATE ON DEVICE = 72
-        private const int SECONDS_TO_REMEMBER = 600;
-        private const int LOWPASS_FREQ = 5;
-
-        public PlotModel MyModel { get; private set; }
-
-        private LineSeries _z = new LineSeries("Accel Z");
-        private LineSeries _speedZ = new LineSeries("Speed Z");
-
-        public MainViewModel()
+        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            this.MyModel = new PlotModel { Title = "Accel Data" };
-            this.MyModel.Series.Add(_z);
-            this.MyModel.Series.Add(_speedZ);
-        }
-
-        public void Invalidate() { MyModel.InvalidatePlot(true); }
-
-        public void AddZ(double x, double y)
-        {
-            _z.Points.Add(new DataPoint(x, y));
-            while (_z.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
-            {
-                _z.Points.RemoveAt(0);
-            }
-        }
-        public void AddSpeed(double x, double y)
-        {
-            _speedZ.Points.Add(new DataPoint(x, y));
-            while (_speedZ.Points.Count > COMMAND_RATE * SECONDS_TO_REMEMBER)
-            {
-                _speedZ.Points.RemoveAt(0);
-            }
-        }
-
-        public double GetZMin()
-        {
-            if (_z.Points.Count == 0) { return -1; }
-            else { return _z.Points.Min(m => m.Y); }
-        }
-
-        public double GetZMax()
-        {
-            if (_z.Points.Count == 0) { return -1; }
-            else { return _z.Points.Max(m => m.Y); }
-        }
-
-        public double GetZMedian()
-        {
-            if (_z.Points.Count == 0) { return -1; }
-            else
-            {
-                return _z.Points.Average(a => a.Y);
-                //int count = _z.Points.Count();
-                //var orderedPoints = _z.Points.OrderBy(p => p.Y);
-                //double median = _z.Points.ElementAt(count / 2).Y + orderedPoints.ElementAt((count - 1) / 2).Y;
-                //median /= 2;
-                //return median;
-            }
-        }
-
-        public void Clear()
-        {
-            _z.Points.Clear();
-            _speedZ.Points.Clear();
-
-        }
-
-        public string Serialize()
-        {
-            return JsonConvert.SerializeObject(new List<DataPoint>[2] { _z.Points, _speedZ.Points });
-        }
-
-        public int Deserialize(string serialized)
-        {
-            try
-            {
-                List<DataPoint>[] result = JsonConvert.DeserializeObject<List<DataPoint>[]>(serialized);
-                Clear();
-                _z.Points.AddRange(result[0]);
-                _speedZ.Points.AddRange(result[1]);
-
-                return (int)_z.Points.Max(p => p.X);
-            }
-            catch (Exception)
-            {
-                return 0;
-            }
+            _mainViewModel.Plot.Series[0].IsVisible = false;
         }
     }
 }

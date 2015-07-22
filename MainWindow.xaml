@@ -1,14 +1,18 @@
-﻿<Window x:Class="WpfApplication1.MainWindow"
+﻿<Window x:Class="ElevatorComfort.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ElevatorComfort"
         xmlns:oxy="http://oxyplot.org/wpf"
-        xmlns:local="clr-namespace:WpfApplication1"
-        Title="Accel Sensor Plot Prototype" Height="557" Width="764" MinWidth="711" MinHeight="300" Closing="Window_Closing" WindowStyle="SingleBorderWindow">
+        mc:Ignorable="d"
+        Title="Accel Sensor Plot Prototype" Height="557" Width="764" MinWidth="711" MinHeight="300" Closing="Window_Closing" WindowStyle="SingleBorderWindow"
+        Keyboard.KeyDown="Window_KeyDown">
     <Window.DataContext>
-        <local:MainViewModel/>
+        <local:ViewModel/>
     </Window.DataContext>
     <Grid>
-        <oxy:PlotView Name="PlotView" Model="{Binding MyModel}" Margin="0,0,10,120"/>
+        <oxy:PlotView Name="PlotView" Model="{Binding Plot}" Margin="0,0,10,120"/>
         <Button Name="ButtonStart" Content="Start" Click="ButtonStart_Click" HorizontalAlignment="Left" Margin="10,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
         <Button Name="ButtonLoad" Content="Load" Click="ButtonLoad_Click" HorizontalAlignment="Left" Margin="142,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
         <Button Name="ButtonSave" Content="Save" Click="ButtonSave_Click" HorizontalAlignment="Left" Margin="274,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>

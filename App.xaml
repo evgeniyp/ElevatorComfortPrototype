@@ -1,6 +1,7 @@
-﻿<Application x:Class="WpfApplication1.App"
+﻿<Application x:Class="ElevatorComfort.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:ElevatorComfort"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
          
