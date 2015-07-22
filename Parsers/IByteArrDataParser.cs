@@ -1,7 +1,10 @@
 ﻿using System;
 
-public interface IByteArrDataParser
+namespace Parsers
 {
-    void HandleData(byte[] buffer, int bytesToRead);
-    event Action<string, object> DataParsed;
+    public interface IByteArrDataParser
+    {
+        void HandleData(byte[] buffer, int bytesToRead);
+        event Action<string, object> DataParsed;
+    }
 }

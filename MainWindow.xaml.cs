@@ -1,17 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using OxyPlot.Series;
-using OxyPlot;
 using System.Windows.Threading;
 using System.IO.Ports;
-using Newtonsoft.Json;
 using Microsoft.Win32;
 using System.IO;
-using Filters;
+using Processing;
 using System.Diagnostics;
+using Parsers;
 
 namespace ElevatorComfort
 {
