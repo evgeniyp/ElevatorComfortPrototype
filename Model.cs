@@ -1,35 +1,104 @@
-﻿using OxyPlot;
-using OxyPlot.Series;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using System.Linq;
 using System.Text;
+using Processing;
 
 namespace ElevatorComfort
 {
+    public struct DataSample
+    {
+        public double X,     // raw X acceleration
+                      Y,     // raw Y acceleration
+                      Z,     // raw Z acceleration
+                      T,     // timestamp
+                      DT,    // delta time
+                      Acc,   // calculated length of acceleration vector
+                      Speed, // calculated speed
+                      Jerk,  // calculated jerk
+                      Vibr;  // calculated vibration
+    }
+
     public class Model
     {
-        private const int MAX_COUNT = 10000;
+        private readonly int _maxCount;
+        private object _lock = new object();
+        private double _lastT;
+        private List<DataSample> _samples = new List<DataSample>();
 
-        private List<DataPoint> _accelList = new List<DataPoint>();
-        private object _accelLock = new object();
-        public void AddAccel(double x, double y)
+        private TwoPoleButterworthFilter _filter = new TwoPoleButterworthFilter();
+        private AccelToSpeed _accelToSpeed = new AccelToSpeed();
+
+        private bool _calibrated = false;
+
+        public Model(int maxCount = 100)
         {
-            lock (_accelLock)
+            _maxCount = maxCount;
+        }
+
+        public void AddXYZ(double x, double y, double z, double t)
+        {
+            lock (_lock)
             {
-                _accelList.Add(new DataPoint(x, y));
-                while (_accelList.Count > MAX_COUNT)
-                    _accelList.RemoveAt(0);
+                var deltaTime = _lastT == 0 ? 0 : t - _lastT;
+
+                var acc = Math.Sqrt(x * x + y * y + z * z);
+
+                if (_lastT == 0)
+                {
+                    _filter.Next(acc);
+                    _filter.Next(acc);
+                    _filter.Next(acc);
+                }
+                acc = _filter.Next(acc);
+
+                var speed = _calibrated ? _accelToSpeed.Next(acc, t) : 0;
+
+                _samples.Add(new DataSample() { X = x, Y = y, Z = z, T = t, DT = deltaTime, Acc = acc, Speed = speed });
+                _lastT = t;
+                while (_samples.Count > _maxCount) { _samples.RemoveAt(0); }
             }
         }
-        public List<DataPoint> GetAccel()
+
+        public DataSample[] GetPoints()
         {
-            lock (_accelLock)
+            lock (_lock)
             {
-                var result = new List<DataPoint>();
-                result.AddRange(_accelList);
+                var result = new DataSample[_samples.Count];
+                _samples.CopyTo(result);
                 return result;
             }
+        }
+
+        public void Reset()
+        {
+            lock (_lock)
+            {
+                _accelToSpeed.Reset();
+                _lastT = 0;
+                _samples.Clear();
+                _calibrated = false;
+            }
+        }
+
+        public void Calibrate()
+        {
+            lock (_lock)
+            {
+                _accelToSpeed.SetToDeadZone(_samples.Average(a => a.Acc));
+                _calibrated = true;
+            }
+        }
+
+        public string Serialize()
+        {
+            return JsonConvert.SerializeObject(_samples);
+        }
+
+        public void Deserialize(string s)
+        {
+            _samples = JsonConvert.DeserializeObject<List<DataSample>>(s);
         }
     }
 }

@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:ElevatorComfort"
         xmlns:oxy="http://oxyplot.org/wpf"
         mc:Ignorable="d"
-        Title="Accel Sensor Plot Prototype" Height="557" Width="764" MinWidth="711" MinHeight="300" Closing="Window_Closing" WindowStyle="SingleBorderWindow"
+        Title="Elevator Comfort Prototype" Height="557" Width="764" MinWidth="711" MinHeight="300" Closing="Window_Closing" WindowStyle="SingleBorderWindow"
         Keyboard.KeyDown="Window_KeyDown">
     <Window.DataContext>
         <local:ViewModel/>
@@ -16,9 +16,8 @@
         <Button Name="ButtonStart" Content="Start" Click="ButtonStart_Click" HorizontalAlignment="Left" Margin="10,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
         <Button Name="ButtonLoad" Content="Load" Click="ButtonLoad_Click" HorizontalAlignment="Left" Margin="142,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
         <Button Name="ButtonSave" Content="Save" Click="ButtonSave_Click" HorizontalAlignment="Left" Margin="274,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonReset" Content="Reset" Click="ButtonReset_Click" HorizontalAlignment="Left" Margin="406,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
         <Button Name="ButtonFitAll" Content="Fit All" Click="ButtonFitAll_Click" HorizontalAlignment="Right" Margin="0,0,10,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="CalibrateSpeedFromAcc" Content="Calibrate" HorizontalAlignment="Left" Margin="10,0,0,10" Click="CalibrateSpeedFromAcc_Click" Width="127" FontWeight="Bold" Height="20" VerticalAlignment="Bottom"/>
+        <Button Name="CalibrateSpeedFromAcc" Content="CALIBRATE" HorizontalAlignment="Left" Margin="10,0,0,10" Click="CalibrateSpeedFromAcc_Click" Width="127" Height="20" VerticalAlignment="Bottom"/>
         <ComboBox Name="ComboBoxComPorts" HorizontalAlignment="Left" Margin="10,0,0,86" Width="127" Height="22" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>
