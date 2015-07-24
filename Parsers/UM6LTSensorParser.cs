@@ -27,6 +27,12 @@ namespace Parsers
         private byte[] _buffer = new byte[1024];
         private int _bufferPosition = 0;
 
+        public void Reset()
+        {
+            _gotFirstSignature = false;
+            _bufferPosition = 0;
+        }
+
         public event Action<string, object> DataParsed;
 
         public void HandleData(byte[] buffer, int bytesToRead)

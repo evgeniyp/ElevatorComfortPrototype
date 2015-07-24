@@ -71,7 +71,7 @@
     </ApplicationDefinition>
     <Compile Include="Parsers\IByteArrDataParser.cs" />
     <Compile Include="Parsers\UM6LTSensorParser.cs" />
-    <Compile Include="Processing\AccekToSpeed.cs" />
+    <Compile Include="Processing\AccelToSpeed.cs" />
     <Compile Include="Processing\Butterworth.cs" />
     <Compile Include="ViewModel.cs" />
     <Page Include="MainWindow.xaml">

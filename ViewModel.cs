@@ -49,14 +49,14 @@ namespace ElevatorComfort
             {
                 var s = dataSamples[i];
 
-                _x.Points.Add(new DataPoint(s.T, s.X));
-                _y.Points.Add(new DataPoint(s.T, s.Y));
-                _z.Points.Add(new DataPoint(s.T, s.Z));
-                _dt.Points.Add(new DataPoint(s.T, s.DT));
-                _acc.Points.Add(new DataPoint(s.T, s.Acc));
-                _speed.Points.Add(new DataPoint(s.T, s.Speed));
-                _jerk.Points.Add(new DataPoint(s.T, s.Jerk));
-                _vibr.Points.Add(new DataPoint(s.T, s.Vibr));
+                _x.Points.Add(new DataPoint(s.Timestamp, s.X));
+                _y.Points.Add(new DataPoint(s.Timestamp, s.Y));
+                _z.Points.Add(new DataPoint(s.Timestamp, s.Z));
+                _dt.Points.Add(new DataPoint(s.Timestamp, s.DT));
+                _acc.Points.Add(new DataPoint(s.Timestamp, s.Acc));
+                _speed.Points.Add(new DataPoint(s.Timestamp, s.Speed));
+                _jerk.Points.Add(new DataPoint(s.Timestamp, s.Jerk));
+                _vibr.Points.Add(new DataPoint(s.Timestamp, s.Vibr));
             }
         }
 

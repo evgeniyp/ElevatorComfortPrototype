@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -14,21 +15,25 @@ namespace ElevatorComfort
     {
         private const string FILE_DIALOG_FILTER = "Data sample files |*.ds";
 
-        private const int DEVICE_FPS = 100;
+        private const int DEVICE_FPS = 184;
         private const int SECONDS_TO_REMEMBER = 60;
         private Model _model = new Model(DEVICE_FPS * SECONDS_TO_REMEMBER);
 
         private ViewModel _mainViewModel { get { return DataContext as ViewModel; } }
 
-        private const int REDRAW_INTERVAL_MS = 15;
+        private const int REDRAW_INTERVAL_MS = 20;
         private DispatcherTimer _redrawTimer = new DispatcherTimer();
 
         private IByteArrDataParser _parser = new UM6LTSensorParser();
 
         private SerialPort _serialPort;
-        private byte[] _serialPortBuffer = new byte[16384];
+        private byte[] _serialPortBuffer = new byte[256];
+        private Thread _serialPortReader;
 
-        private Stopwatch _stopwatch = new Stopwatch();
+        //private Stopwatch _stopwatch = new Stopwatch();
+        private long _manualStopwatchCounter = 0;
+        private const double FRAME_LENGHT_MS = 1000 / DEVICE_FPS;
+
         private double _lastX;
         private double _lastY;
 
@@ -67,30 +72,72 @@ namespace ElevatorComfort
             _serialPort.StopBits = StopBits.One;
             _serialPort.DataBits = 8;
             _serialPort.Handshake = Handshake.None;
-            _serialPort.DataReceived += _serialPort_DataReceived;
+            //_serialPort.DataReceived += _serialPort_DataReceived;
 
             if (!_serialPort.IsOpen) { _serialPort.Open(); }
+
+            _serialPortReader = new Thread(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        var __btr = _serialPort.BytesToRead;
+                        if (__btr > 0)
+                        {
+                            int __bytes_read = _serialPort.Read(_serialPortBuffer, 0, Math.Min(_serialPortBuffer.Length, __btr));
+                            _parser.HandleData(_serialPortBuffer, __bytes_read);
+                        }
+                        else Thread.Sleep(1);
+                    }
+                }
+                catch (ThreadAbortException) { }
+                catch (Exception e) { Dispatcher.BeginInvoke((Action)(() => { Title = e.Message; })); }
+            });
+            _serialPortReader.Start();
+
         }
 
         private void CloseSerialPort()
         {
             if (_serialPort != null)
             {
-                _serialPort.DataReceived -= _serialPort_DataReceived;
+                _serialPortReader.Abort();
+
                 if (_serialPort.IsOpen) { _serialPort.Close(); }
+                //_serialPort.DataReceived -= _serialPort_DataReceived;
             }
         }
 
-        private void _serialPort_DataReceived(object sender, SerialDataReceivedEventArgs eventArgs)
+        //private void _serialPort_DataReceived(object sender, SerialDataReceivedEventArgs eventArgs)
+        //{
+        //    try
+        //    {
+        //        SerialPort sp = (SerialPort)sender;
+        //        var bytesToRead = _serialPort.BytesToRead;
+        //        sp.Read(_serialPortBuffer, 0, bytesToRead);
+        //        _parser.HandleData(_serialPortBuffer, bytesToRead);
+        //    }
+        //    catch (Exception e) { Dispatcher.BeginInvoke((Action)(() => { Title = e.Message; })); }
+        //}
+
+        private void _parser_DataParsed(string name, object value)
         {
-            try
+            switch (name)
             {
-                SerialPort sp = (SerialPort)sender;
-                var bytesToRead = _serialPort.BytesToRead;
-                sp.Read(_serialPortBuffer, 0, bytesToRead);
-                _parser.HandleData(_serialPortBuffer, bytesToRead);
+                case "X":
+                    _lastX = (float)value;
+                    break;
+                case "Y":
+                    _lastY = (float)value;
+                    break;
+                case "Z":
+                    _model.AddXYZ(_lastX, _lastY, (float)value, _manualStopwatchCounter, FRAME_LENGHT_MS);
+                    _manualStopwatchCounter += 1000 / DEVICE_FPS;
+                    break;
+                default:
+                    break;
             }
-            catch (Exception e) { Dispatcher.BeginInvoke((Action)(() => { Title = e.Message; })); }
         }
 
         private void EnableDataEntry(bool enable, string comPortName = "")
@@ -113,24 +160,6 @@ namespace ElevatorComfort
             catch (System.IO.IOException e) { Title = e.Message; }
         }
 
-        private void _parser_DataParsed(string name, object value)
-        {
-            switch (name)
-            {
-                case "X":
-                    _lastX = (float)value;
-                    break;
-                case "Y":
-                    _lastY = (float)value;
-                    break;
-                case "Z":
-                    _model.AddXYZ(_lastX, _lastY, (float)value, _stopwatch.ElapsedMilliseconds / 1000.0d);
-                    break;
-                default:
-                    break;
-            }
-        }
-
         private void ButtonStart_Click(object sender, RoutedEventArgs e)
         {
             var button = sender as Button;
@@ -145,7 +174,8 @@ namespace ElevatorComfort
                 ButtonLoad.IsEnabled = false;
                 ButtonSave.IsEnabled = false;
 
-                _stopwatch.Restart();
+                _manualStopwatchCounter = 0;
+                //_stopwatch.Restart();
 
                 EnableDataEntry(true, ComboBoxComPorts.SelectedItem.ToString());
             }
@@ -200,6 +230,11 @@ namespace ElevatorComfort
 
         private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
+            if (e.Key == System.Windows.Input.Key.Space) {
+                ButtonStart_Click(ButtonStart, null);
+                return;
+            }
+
             int seriesIndex;
             switch (e.Key)
             {

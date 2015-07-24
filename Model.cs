@@ -9,54 +9,56 @@ namespace ElevatorComfort
 {
     public struct DataSample
     {
-        public double X,     // raw X acceleration
-                      Y,     // raw Y acceleration
-                      Z,     // raw Z acceleration
-                      T,     // timestamp
-                      DT,    // delta time
-                      Acc,   // calculated length of acceleration vector
-                      Speed, // calculated speed
-                      Jerk,  // calculated jerk
-                      Vibr;  // calculated vibration
+        public double X,         // raw X acceleration
+                      Y,         // raw Y acceleration
+                      Z,         // raw Z acceleration
+                      Timestamp, // timestamp
+                      DT,        // delta time
+                      Acc,       // calculated length of acceleration vector
+                      Speed,     // calculated speed
+                      Jerk,      // calculated jerk
+                      Vibr;      // calculated vibration
     }
 
     public class Model
     {
+        private const double GRAVITY_ACC = 9.8;
+
         private readonly int _maxCount;
         private object _lock = new object();
-        private double _lastT;
         private List<DataSample> _samples = new List<DataSample>();
 
         private TwoPoleButterworthFilter _filter = new TwoPoleButterworthFilter();
         private AccelToSpeed _accelToSpeed = new AccelToSpeed();
+        private AccelToJerk _accelToJerk = new AccelToJerk();
 
         private bool _calibrated = false;
 
-        public Model(int maxCount = 100)
+        public Model(int maxCount)
         {
             _maxCount = maxCount;
         }
 
-        public void AddXYZ(double x, double y, double z, double t)
+        public void AddXYZ(double x, double y, double z, double timestamp, double deltaTimestamp)
         {
             lock (_lock)
             {
-                var deltaTime = _lastT == 0 ? 0 : t - _lastT;
+                var acc = _filter.Next(z);
 
-                var acc = Math.Sqrt(x * x + y * y + z * z);
-
-                if (_lastT == 0)
+                if (timestamp == 0)
                 {
                     _filter.Next(acc);
                     _filter.Next(acc);
-                    _filter.Next(acc);
+
+                    _accelToJerk.Next(acc, deltaTimestamp / 1000);
                 }
                 acc = _filter.Next(acc);
 
-                var speed = _calibrated ? _accelToSpeed.Next(acc, t) : 0;
+                var jerk = _accelToJerk.Next(acc, deltaTimestamp / 1000);
 
-                _samples.Add(new DataSample() { X = x, Y = y, Z = z, T = t, DT = deltaTime, Acc = acc, Speed = speed });
-                _lastT = t;
+                var speed = _calibrated ? _accelToSpeed.Next(acc, deltaTimestamp) : 0;
+
+                _samples.Add(new DataSample() { X = x, Y = y, Z = z, Timestamp = timestamp, DT = deltaTimestamp, Acc = acc, Speed = speed / GRAVITY_ACC, Jerk = jerk });
                 while (_samples.Count > _maxCount) { _samples.RemoveAt(0); }
             }
         }
@@ -76,7 +78,6 @@ namespace ElevatorComfort
             lock (_lock)
             {
                 _accelToSpeed.Reset();
-                _lastT = 0;
                 _samples.Clear();
                 _calibrated = false;
             }
@@ -86,7 +87,7 @@ namespace ElevatorComfort
         {
             lock (_lock)
             {
-                _accelToSpeed.SetToDeadZone(_samples.Average(a => a.Acc));
+                _accelToSpeed.Calibrate(_samples.Average(a => a.Z));
                 _calibrated = true;
             }
         }
