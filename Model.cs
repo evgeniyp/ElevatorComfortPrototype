@@ -31,6 +31,7 @@ namespace ElevatorComfort
         private TwoPoleButterworthFilter _filter = new TwoPoleButterworthFilter();
         private AccelToSpeed _accelToSpeed = new AccelToSpeed();
         private AccelToJerk _accelToJerk = new AccelToJerk();
+        private ZeroCrossMaximum _vibrationCounter = new ZeroCrossMaximum();
 
         private bool _calibrated = false;
 
@@ -50,15 +51,25 @@ namespace ElevatorComfort
                     _filter.Next(acc);
                     _filter.Next(acc);
 
-                    _accelToJerk.Next(acc, deltaTimestamp / 1000);
+                    _accelToJerk.Next(acc, deltaTimestamp);
                 }
                 acc = _filter.Next(acc);
 
-                var jerk = _accelToJerk.Next(acc, deltaTimestamp / 1000);
+                var jerk = _accelToJerk.Next(acc, deltaTimestamp);
+                var speed = _calibrated ? _accelToSpeed.Next(acc, deltaTimestamp) * GRAVITY_ACC : 0;
+                var vibr = _vibrationCounter.Next(acc);
 
-                var speed = _calibrated ? _accelToSpeed.Next(acc, deltaTimestamp) : 0;
-
-                _samples.Add(new DataSample() { X = x, Y = y, Z = z, Timestamp = timestamp, DT = deltaTimestamp, Acc = acc, Speed = speed / GRAVITY_ACC, Jerk = jerk });
+                _samples.Add(new DataSample() {
+                    X = x,
+                    Y = y,
+                    Z = z,
+                    Timestamp = timestamp,
+                    DT = deltaTimestamp,
+                    Acc = acc,
+                    Speed = speed,
+                    Jerk = jerk / 100,
+                    Vibr = vibr
+                });
                 while (_samples.Count > _maxCount) { _samples.RemoveAt(0); }
             }
         }
@@ -77,6 +88,7 @@ namespace ElevatorComfort
         {
             lock (_lock)
             {
+                _vibrationCounter.Reset();
                 _accelToSpeed.Reset();
                 _samples.Clear();
                 _calibrated = false;
@@ -87,6 +99,7 @@ namespace ElevatorComfort
         {
             lock (_lock)
             {
+                if (_samples.Count == 0) { return; }
                 _accelToSpeed.Calibrate(_samples.Average(a => a.Z));
                 _calibrated = true;
             }

@@ -15,9 +15,9 @@ namespace ElevatorComfort
     {
         private const string FILE_DIALOG_FILTER = "Data sample files |*.ds";
 
-        private const int DEVICE_FPS = 184;
+        private const double DEVICE_FPS = 184.7058823529412; // device rate register = 150 (280 / 255 * DEVICE_FPS + 20)
         private const int SECONDS_TO_REMEMBER = 60;
-        private Model _model = new Model(DEVICE_FPS * SECONDS_TO_REMEMBER);
+        private Model _model = new Model((int)(DEVICE_FPS * SECONDS_TO_REMEMBER));
 
         private ViewModel _mainViewModel { get { return DataContext as ViewModel; } }
 
@@ -31,8 +31,8 @@ namespace ElevatorComfort
         private Thread _serialPortReader;
 
         //private Stopwatch _stopwatch = new Stopwatch();
-        private long _manualStopwatchCounter = 0;
-        private const double FRAME_LENGHT_MS = 1000 / DEVICE_FPS;
+        private double _manualStopwatchCounter = 0;
+        private const double FRAME_LENGTH = 1 / DEVICE_FPS;
 
         private double _lastX;
         private double _lastY;
@@ -132,8 +132,8 @@ namespace ElevatorComfort
                     _lastY = (float)value;
                     break;
                 case "Z":
-                    _model.AddXYZ(_lastX, _lastY, (float)value, _manualStopwatchCounter, FRAME_LENGHT_MS);
-                    _manualStopwatchCounter += 1000 / DEVICE_FPS;
+                    _model.AddXYZ(_lastX, _lastY, (float)value, _manualStopwatchCounter, FRAME_LENGTH);
+                    _manualStopwatchCounter += FRAME_LENGTH;
                     break;
                 default:
                     break;
