@@ -8,11 +8,20 @@ using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
 using Parsers;
+using NAudio.Wave;
 
 namespace ElevatorComfort
 {
     public partial class MainWindow : Window
     {
+        public class ComboBoxItem
+        {
+            public string Text { get; set; }
+            public int Value { get; set; }
+
+            public override string ToString() { return Text; }
+        }
+
         private const string FILE_DIALOG_FILTER = "Data sample files |*.ds";
 
         private const double DEVICE_FPS = 184.7058823529412; // device rate register = 150 (280 / 255 * DEVICE_FPS + 20)
@@ -30,6 +39,12 @@ namespace ElevatorComfort
         private byte[] _serialPortBuffer = new byte[256];
         private Thread _serialPortReader;
 
+        private const int SAMPLE_RATE = 44100;
+        private const int MAX_SAMPLE_COUNTER = (int)(SAMPLE_RATE / DEVICE_FPS);
+        private WaveIn _waveIn;
+        private short _maxSample;
+        private int _sampleCounter;
+
         //private Stopwatch _stopwatch = new Stopwatch();
         private double _manualStopwatchCounter = 0;
         private const double FRAME_LENGTH = 1 / DEVICE_FPS;
@@ -42,6 +57,7 @@ namespace ElevatorComfort
             InitializeComponent();
 
             InitializeComboBoxComPorts();
+            InitializeComboBoxAudioIns();
             InitializeRedrawTimer();
         }
 
@@ -51,6 +67,60 @@ namespace ElevatorComfort
             var portNames = SerialPort.GetPortNames();
             foreach (var portName in portNames) { ComboBoxComPorts.Items.Add(portName); }
             if (ComboBoxComPorts.Items.Count > 0) { ComboBoxComPorts.SelectedIndex = 0; }
+        }
+
+        private void InitializeComboBoxAudioIns()
+        {
+            ComboBoxAudioIns.Items.Clear();
+            int waveInDevices = WaveIn.DeviceCount;
+            for (int waveInDevice = 0; waveInDevice < waveInDevices; waveInDevice++)
+            {
+                WaveInCapabilities deviceInfo = WaveIn.GetCapabilities(waveInDevice);
+                ComboBoxAudioIns.Items.Add(new ComboBoxItem() { Text = deviceInfo.ProductName, Value = waveInDevice });
+            }
+            if (ComboBoxAudioIns.Items.Count > 0) { ComboBoxAudioIns.SelectedIndex = 0; }
+        }
+
+        private void InitializeSelectedAudioIn(int waveInDevice)
+        {
+            if (_waveIn != null)
+            {
+                _waveIn.DataAvailable -= _waveIn_DataAvailable;
+                _waveIn.Dispose();
+            }
+
+            _waveIn = new WaveIn();
+            _waveIn.DeviceNumber = waveInDevice;
+            _waveIn.WaveFormat = new WaveFormat(44100, 1);
+            _waveIn.DataAvailable += _waveIn_DataAvailable;
+            _waveIn.BufferMilliseconds = (int)(1000 / DEVICE_FPS);
+            _waveIn.StartRecording();
+        }
+
+        private void _waveIn_DataAvailable(object sender, WaveInEventArgs e)
+        {
+            byte[] buffer = e.Buffer;
+            int bytesRecorded = e.BytesRecorded;
+
+            for (int index = 0; index < e.BytesRecorded; index += 2)
+            {
+                short sample = (short)((buffer[index + 1] << 8) | buffer[index + 0]);
+
+                _maxSample = Math.Max(sample, _maxSample);
+                _sampleCounter++;
+                if (_sampleCounter > MAX_SAMPLE_COUNTER)
+                {
+                    //Dispatcher.BeginInvoke((Action)(() => { }));
+                    ProgressBarAudioLevel.Value = _maxSample;
+                    _maxSample = 0;
+                    _sampleCounter = 0;
+                }
+            }
+        }
+
+        private void ComboBoxAudioIns_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            InitializeSelectedAudioIn(((sender as ComboBox).SelectedValue as ComboBoxItem).Value);
         }
 
         private void InitializeRedrawTimer()
@@ -132,7 +202,7 @@ namespace ElevatorComfort
                     _lastY = (float)value;
                     break;
                 case "Z":
-                    _model.AddXYZ(_lastX, _lastY, (float)value, _manualStopwatchCounter, FRAME_LENGTH);
+                    _model.AddValues(_lastX, _lastY, (float)value, _maxSample / (double)short.MaxValue, _manualStopwatchCounter, FRAME_LENGTH);
                     _manualStopwatchCounter += FRAME_LENGTH;
                     break;
                 default:
@@ -171,6 +241,7 @@ namespace ElevatorComfort
 
                 button.Content = "Stop";
                 ComboBoxComPorts.IsEnabled = false;
+                ComboBoxAudioIns.IsEnabled = false;
                 ButtonLoad.IsEnabled = false;
                 ButtonSave.IsEnabled = false;
 
@@ -183,6 +254,7 @@ namespace ElevatorComfort
             {
                 button.Content = "Start";
                 ComboBoxComPorts.IsEnabled = true;
+                ComboBoxAudioIns.IsEnabled = true;
                 ButtonLoad.IsEnabled = true;
                 ButtonSave.IsEnabled = true;
                 EnableDataEntry(false);
@@ -230,7 +302,8 @@ namespace ElevatorComfort
 
         private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Space) {
+            if (e.Key == System.Windows.Input.Key.Space)
+            {
                 ButtonStart_Click(ButtonStart, null);
                 return;
             }

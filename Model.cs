@@ -17,7 +17,8 @@ namespace ElevatorComfort
                       Acc,       // calculated length of acceleration vector
                       Speed,     // calculated speed
                       Jerk,      // calculated jerk
-                      Vibr;      // calculated vibration
+                      Vibr,      // calculated vibration
+                      Sound;     // audio pressure level
     }
 
     public class Model
@@ -40,7 +41,7 @@ namespace ElevatorComfort
             _maxCount = maxCount;
         }
 
-        public void AddXYZ(double x, double y, double z, double timestamp, double deltaTimestamp)
+        public void AddValues(double x, double y, double z, double sound, double timestamp, double deltaTimestamp)
         {
             lock (_lock)
             {
@@ -68,7 +69,8 @@ namespace ElevatorComfort
                     Acc = acc,
                     Speed = speed,
                     Jerk = jerk / 100,
-                    Vibr = vibr
+                    Vibr = vibr,
+                    Sound = sound
                 });
                 while (_samples.Count > _maxCount) { _samples.RemoveAt(0); }
             }

@@ -13,11 +13,13 @@
     </Window.DataContext>
     <Grid>
         <oxy:PlotView Name="PlotView" Model="{Binding Plot}" Margin="0,0,10,120"/>
-        <Button Name="ButtonStart" Content="Start" Click="ButtonStart_Click" HorizontalAlignment="Left" Margin="10,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonLoad" Content="Load" Click="ButtonLoad_Click" HorizontalAlignment="Left" Margin="142,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="ButtonSave" Content="Save" Click="ButtonSave_Click" HorizontalAlignment="Left" Margin="274,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="ButtonStart" Content="Start" Click="ButtonStart_Click" HorizontalAlignment="Left" Margin="142,0,0,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
+        <Button Name="ButtonLoad" Content="Load" Click="ButtonLoad_Click" Margin="0,0,274,35" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom" HorizontalAlignment="Right" Width="127"/>
+        <Button Name="ButtonSave" Content="Save" Click="ButtonSave_Click" Margin="0,0,142,35" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom" HorizontalAlignment="Right" Width="127"/>
         <Button Name="ButtonFitAll" Content="Fit All" Click="ButtonFitAll_Click" HorizontalAlignment="Right" Margin="0,0,10,35" Width="127" FontSize="20" FontWeight="Bold" Height="46" VerticalAlignment="Bottom"/>
-        <Button Name="CalibrateSpeedFromAcc" Content="CALIBRATE" HorizontalAlignment="Left" Margin="10,0,0,10" Click="CalibrateSpeedFromAcc_Click" Width="127" Height="20" VerticalAlignment="Bottom"/>
-        <ComboBox Name="ComboBoxComPorts" HorizontalAlignment="Left" Margin="10,0,0,86" Width="127" Height="22" VerticalAlignment="Bottom"/>
+        <Button Name="CalibrateSpeedFromAcc" Content="CALIBRATE" HorizontalAlignment="Left" Margin="142,0,0,10" Click="CalibrateSpeedFromAcc_Click" Width="127" Height="20" VerticalAlignment="Bottom"/>
+        <ComboBox Name="ComboBoxComPorts" HorizontalAlignment="Left" Margin="10,0,0,60" Width="127" Height="21" VerticalAlignment="Bottom"/>
+        <ComboBox Name="ComboBoxAudioIns" HorizontalAlignment="Left" Margin="10,0,0,35" Width="127" Height="21" VerticalAlignment="Bottom" SelectionChanged="ComboBoxAudioIns_SelectionChanged"/>
+        <ProgressBar Name="ProgressBarAudioLevel" HorizontalAlignment="Left" Margin="10,0,0,10" Width="127" Minimum="0" Maximum="32767" Height="20" VerticalAlignment="Bottom" />
     </Grid>
 </Window>
