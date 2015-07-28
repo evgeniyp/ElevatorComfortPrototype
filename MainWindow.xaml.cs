@@ -24,7 +24,7 @@ namespace ElevatorComfort
 
         private const string FILE_DIALOG_FILTER = "Data sample files |*.ds";
 
-        private const double DEVICE_FPS = 184.7058823529412; // device rate register = 150 (280 / 255 * DEVICE_FPS + 20)
+        private const double DEVICE_FPS = 184.7058823529412; // device rate register = 150 (280 / 255 * DEVICE_FPS + 20 = 184.7058823529412)
         private const int SECONDS_TO_REMEMBER = 60;
         private Model _model = new Model((int)(DEVICE_FPS * SECONDS_TO_REMEMBER));
 
@@ -40,12 +40,12 @@ namespace ElevatorComfort
         private Thread _serialPortReader;
 
         private const int SAMPLE_RATE = 44100;
-        private const int MAX_SAMPLE_COUNTER = (int)(SAMPLE_RATE / DEVICE_FPS);
+        private const int MAX_SAMPLE_COUNTER = (int)(SAMPLE_RATE / DEVICE_FPS * 10);
         private WaveIn _waveIn;
         private short _maxSample;
+        private short _lastMaxSample;
         private int _sampleCounter;
 
-        //private Stopwatch _stopwatch = new Stopwatch();
         private double _manualStopwatchCounter = 0;
         private const double FRAME_LENGTH = 1 / DEVICE_FPS;
 
@@ -110,7 +110,7 @@ namespace ElevatorComfort
                 _sampleCounter++;
                 if (_sampleCounter > MAX_SAMPLE_COUNTER)
                 {
-                    //Dispatcher.BeginInvoke((Action)(() => { }));
+                    _lastMaxSample = _maxSample;
                     ProgressBarAudioLevel.Value = _maxSample;
                     _maxSample = 0;
                     _sampleCounter = 0;
@@ -142,7 +142,6 @@ namespace ElevatorComfort
             _serialPort.StopBits = StopBits.One;
             _serialPort.DataBits = 8;
             _serialPort.Handshake = Handshake.None;
-            //_serialPort.DataReceived += _serialPort_DataReceived;
 
             if (!_serialPort.IsOpen) { _serialPort.Open(); }
 
@@ -152,20 +151,19 @@ namespace ElevatorComfort
                 {
                     while (true)
                     {
-                        var __btr = _serialPort.BytesToRead;
-                        if (__btr > 0)
+                        var bytesToRead = _serialPort.BytesToRead;
+                        if (bytesToRead > 0)
                         {
-                            int __bytes_read = _serialPort.Read(_serialPortBuffer, 0, Math.Min(_serialPortBuffer.Length, __btr));
-                            _parser.HandleData(_serialPortBuffer, __bytes_read);
+                            int bytesRead = _serialPort.Read(_serialPortBuffer, 0, Math.Min(_serialPortBuffer.Length, bytesToRead));
+                            _parser.HandleData(_serialPortBuffer, bytesRead);
                         }
-                        else Thread.Sleep(1);
+                        else { Thread.Sleep(1); }
                     }
                 }
                 catch (ThreadAbortException) { }
                 catch (Exception e) { Dispatcher.BeginInvoke((Action)(() => { Title = e.Message; })); }
             });
             _serialPortReader.Start();
-
         }
 
         private void CloseSerialPort()
@@ -175,21 +173,8 @@ namespace ElevatorComfort
                 _serialPortReader.Abort();
 
                 if (_serialPort.IsOpen) { _serialPort.Close(); }
-                //_serialPort.DataReceived -= _serialPort_DataReceived;
             }
         }
-
-        //private void _serialPort_DataReceived(object sender, SerialDataReceivedEventArgs eventArgs)
-        //{
-        //    try
-        //    {
-        //        SerialPort sp = (SerialPort)sender;
-        //        var bytesToRead = _serialPort.BytesToRead;
-        //        sp.Read(_serialPortBuffer, 0, bytesToRead);
-        //        _parser.HandleData(_serialPortBuffer, bytesToRead);
-        //    }
-        //    catch (Exception e) { Dispatcher.BeginInvoke((Action)(() => { Title = e.Message; })); }
-        //}
 
         private void _parser_DataParsed(string name, object value)
         {
@@ -202,7 +187,7 @@ namespace ElevatorComfort
                     _lastY = (float)value;
                     break;
                 case "Z":
-                    _model.AddValues(_lastX, _lastY, (float)value, _maxSample / (double)short.MaxValue, _manualStopwatchCounter, FRAME_LENGTH);
+                    _model.AddValues(_lastX, _lastY, (float)value, _lastMaxSample / (double)short.MaxValue, _manualStopwatchCounter, FRAME_LENGTH);
                     _manualStopwatchCounter += FRAME_LENGTH;
                     break;
                 default:
@@ -246,7 +231,6 @@ namespace ElevatorComfort
                 ButtonSave.IsEnabled = false;
 
                 _manualStopwatchCounter = 0;
-                //_stopwatch.Restart();
 
                 EnableDataEntry(true, ComboBoxComPorts.SelectedItem.ToString());
             }
